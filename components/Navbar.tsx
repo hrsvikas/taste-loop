@@ -1,0 +1,7 @@
+Home
+
+Vault
+
+Friends
+
+Profile
