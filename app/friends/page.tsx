@@ -1,3 +1,7 @@
+// ==========================================
+// FRIENDS PAGE
+// ==========================================
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -5,11 +9,22 @@ import supabase from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 
 export default function FriendsPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [friends, setFriends] = useState<any[]>([]);
-  const [search, setSearch] =  useState("");
 
+  // Stores all users
+  const [users, setUsers] = useState<any[]>([]);
+
+  // Stores current user's friends
+  const [friends, setFriends] = useState<any[]>([]);
+
+  // Stores search text
+  const [search, setSearch] = useState("");
+
+  // ==========================================
+  // LOAD ALL USERS
+  // ==========================================
   async function loadUsers() {
+
+    // Get all users from database
     const { data, error } = await supabase
       .from("users")
       .select("*");
@@ -19,188 +34,143 @@ export default function FriendsPage() {
       return;
     }
 
+    // Get current logged-in user
     const {
-  data: { user },
-} = await supabase.auth.getUser();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-const filteredUsers =
-  (data || []).filter(
-    (u) => u.id !== user?.id
-  );
+    // Remove current user from list
+    const filteredUsers =
+      (data || []).filter(
+        (u) => u.id !== user?.id
+      );
 
-setUsers(filteredUsers);
+    setUsers(filteredUsers);
   }
 
+  // ==========================================
+  // LOAD MY FRIENDS
+  // ==========================================
   async function loadFriends() {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) return;
+    // Get current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const { data, error } = await supabase
-    .from("friends")
-    .select(`
-      id,
-      friend_id,
-      users!friends_friend_id_fkey (
+    if (!user) return;
+
+    // Get all friends and their names
+    const { data, error } = await supabase
+      .from("friends")
+      .select(`
         id,
-        name
-      )
-    `)
-    .eq("user_id", user.id);
+        friend_id,
+        users!friends_friend_id_fkey (
+          id,
+          name
+        )
+      `)
+      .eq("user_id", user.id);
 
-  if (error) {
-    console.log(error);
-    return;
+    if (error) {
+      console.log(error);
+      return;
+    }
+
+    // Save friends in state
+    setFriends(data || []);
   }
 
-  setFriends(data || []);
-}
-
+  // ==========================================
+  // ADD NEW FRIEND
+  // ==========================================
   async function addFriend(friendId: string) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    alert("Please login first");
-    return;
+    // Get current user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("Please login first");
+      return;
+    }
+
+    // Prevent user from adding themselves
+    if (user.id === friendId) {
+      alert("You cannot add yourself");
+      return;
+    }
+
+    // Check if friendship already exists
+    const {
+      data: existingFriend,
+      error: checkError,
+    } = await supabase
+      .from("friends")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("friend_id", friendId)
+      .maybeSingle();
+
+    if (checkError) {
+      console.log(checkError);
+      return;
+    }
+
+    // Prevent duplicate friends
+    if (existingFriend) {
+      alert("Already friends");
+      return;
+    }
+
+    // Insert new friend record
+    const { error } = await supabase
+      .from("friends")
+      .insert([
+        {
+          user_id: user.id,
+          friend_id: friendId,
+        },
+      ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Friend added!");
+
+    // Refresh friend list
+    loadFriends();
   }
 
-  // Prevent adding yourself
-  if (user.id === friendId) {
-    alert("You cannot add yourself");
-    return;
-  }
-
-  // Check if already friends
-  const {
-    data: existingFriend,
-    error: checkError,
-  } = await supabase
-    .from("friends")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("friend_id", friendId)
-    .maybeSingle();
-
-  if (checkError) {
-    console.log(checkError);
-    return;
-  }
-
-  if (existingFriend) {
-    alert("Already friends");
-    return;
-  }
-
-  // Add friend
-  const { error } = await supabase
-    .from("friends")
-    .insert([
-      {
-        user_id: user.id,
-        friend_id: friendId,
-      },
-    ]);
-
-  if (error) {
-    alert(error.message);
-    return;
-  }
-
-  alert("Friend added!");
-
-  loadFriends();
-}
-
+  // ==========================================
+  // RUN WHEN PAGE LOADS
+  // ==========================================
   useEffect(() => {
     loadUsers();
     loadFriends();
   }, []);
 
   return (
-    <div
-      style={{
-        padding: "40px",
-        fontFamily: "Arial",
-      }}
-    >
-      <Navbar/>
-      <h1>Friends</h1>
+    <div>
+      {/* Top navigation */}
+      <Navbar />
 
-      <hr />
-
+      {/* Search box */}
       <input
-  type="text"
-  placeholder="Search users..."
-  value={search}
-  onChange={(e) =>
-    setSearch(e.target.value)
-  }
-  style={{
-    padding: "10px",
-    width: "300px",
-    marginBottom: "20px",
-  }}
-/>
+        type="text"
+        placeholder="Search users..."
+      />
 
-      <h2>All Users</h2>
+      {/* All users section */}
+      {/* Filter users based on search text */}
+      {/* Show Add Friend button */}
 
-      {users
-  .filter((user) =>
-    user.name
-      ?.toLowerCase()
-      .includes(
-        search.toLowerCase()
-      )
-  )
-  .map((user) => (
-        <div
-          key={user.id}
-          style={{
-            border: "1px solid gray",
-            padding: "10px",
-            marginBottom: "10px",
-            borderRadius: "8px",
-          }}
-        >
-          <p>
-            <strong>{user.name}</strong>
-          </p>
-
-          <button
-            onClick={() => addFriend(user.id)}
-          >
-            Add Friend
-          </button>
-        </div>
-      ))}
-
-      <hr />
-
-      <h2>My Friends</h2>
-
-      {friends.length === 0 ? (
-        <p>No friends yet.</p>
-      ) : (
-      friends.map((friend) => (
-  <div
-    key={friend.id}
-    style={{
-      border: "1px solid gray",
-      padding: "10px",
-      marginBottom: "10px",
-      borderRadius: "8px",
-    }}
-  >
-    <strong>
-      {friend.users?.name}
-    </strong>
-  </div>
-))
-      )}
+      {/* Friends section */}
+      {/* Show all added friends */}
     </div>
   );
 }
